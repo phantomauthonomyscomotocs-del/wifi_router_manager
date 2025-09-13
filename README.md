@@ -1,3 +1,4 @@
+sdk: ">=3.0.5 <4.0.0"
 # Wifi Router Manager
 
 This is a simple router management applicated created using the router local admin dashboard api for backend.
