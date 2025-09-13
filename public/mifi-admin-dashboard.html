@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ZLT M30s PRO MiFi Admin Dashboard</title>
+  <style>
+    body { font-family: monospace; background: #000; color: #0f0; padding: 20px; }
+    .box { max-width: 600px; margin: auto; background: #111; padding: 20px; border-radius: 10px; }
+    input, button, select { width: 100%; margin-top: 10px; padding: 8px; background: #222; color: #0f0; border: 1px solid #0f0; }
+    button { background: #0f0; color: #000; font-weight: bold; cursor: pointer; }
+    button:hover { background: #5f5; }
+    pre { margin-top: 20px; white-space: pre-wrap; }
+    .desc { color: #ccc; font-size: 13px; margin-bottom: 15px;}
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; background: #222; color: #0f0;}
+    th, td { border: 1px solid #0f0; padding: 8px; text-align: left; }
+    th { background: #333; }
+    .mac-block { display: flex; gap: 10px; margin-top: 10px; }
+    .mac-block input { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>🔐 ZLT M30s PRO MiFi Admin Dashboard</h2>
+    <div class="desc">
+      Secure your MiFi! Change admin password, view connected devices, and block unknown connections.<br>
+      <b>Make sure you are connected to your MiFi’s WiFi.</b>
+    </div>
+
+    <!-- Change Admin Password Section -->
+    <h3>Change Admin Password</h3>
+    <p>
+      <a href="http://192.168.0.1" target="_blank" style="color:#0f0;text-decoration:underline;">Open MiFi Admin Panel</a><br>
+      After login, go to <b>System Settings</b> &rarr; <b>Change Password</b>.
+    </p>
+
+    <hr>
+
+    <!-- Connected Devices Section -->
+    <h3>Connected Devices</h3>
+    <pre id="devices">[ Loading device list... ]</pre>
+
+    <!-- Block MAC Address Section -->
+    <h3>Block Unknown Device (MAC Filter)</h3>
+    <div class="mac-block">
+      <input type="text" id="macInput" placeholder="Enter MAC Address (e.g. 82:3C:AD:E9:C3:E4)">
+      <button onclick="blockMac()">Add to Block List</button>
+    </div>
+    <pre id="blockResult"></pre>
+
+    <hr>
+    <div style="color:#ccc;font-size:13px;">
+      Tip: For best results, change BOTH your WiFi and Admin passwords after blocking unknown devices.
+    </div>
+  </div>
+
+  <script>
+    // This script tries to fetch the device list from your MiFi. For most routers, this requires you to be logged in.
+    // If the router blocks cross-origin requests, you may need to view the device list in the admin panel instead.
+
+    async function fetchDevices() {
+      const out = document.getElementById("devices");
+      try {
+        // Attempt to fetch device info from router (endpoint/path may vary by firmware)
+        // This is a "best guess" for ZLT devices. If it fails, instruct user to check admin panel.
+        const res = await fetch("http://192.168.0.1/goform/getDeviceList", { method: "GET" });
+        if (!res.ok) throw new Error("Could not get device list (not logged in or endpoint missing).");
+        const data = await res.json();
+
+        // Example format: data.devices = [{ssid, host, ip, mac}, ...]
+        if (!data.devices || !data.devices.length) {
+          out.textContent = "[ No connected devices found. Please check your admin panel for device info. ]";
+          return;
+        }
+        let table = `<table><tr><th>SSID</th><th>Host Name</th><th>IP Address</th><th>MAC Address</th></tr>`;
+        for (const dev of data.devices) {
+          table += `<tr><td>${dev.ssid||""}</td><td>${dev.host||""}</td><td>${dev.ip||""}</td><td>${dev.mac||""}</td></tr>`;
+        }
+        table += `</table>`;
+        out.innerHTML = table;
+      } catch (err) {
+        out.textContent = "[ Could not retrieve device list automatically. Please view connected devices in your admin panel (Device Settings > Wireless Access Device). ]";
+      }
+    }
+
+    fetchDevices(); // Try to show devices list on page load
+
+    // Block MAC address function
+    async function blockMac() {
+      const mac = document.getElementById("macInput").value.trim();
+      const resBox = document.getElementById("blockResult");
+      if (!mac.match(/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/)) {
+        resBox.textContent = "[ Invalid MAC address format. ]";
+        return;
+      }
+      resBox.textContent = "[ Sending block request... ]";
+      try {
+        // Try to add MAC to filter via router API (endpoint may differ by firmware/version)
+        const params = new URLSearchParams();
+        params.append("mac", mac);
+        params.append("filter", "blacklist");
+        const res = await fetch("http://192.168.0.1/goform/setMacFilter", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString()
+        });
+        const text = await res.text();
+        if (res.ok) {
+          resBox.textContent = "[ MAC block request sent. Response: ]\n" + text;
+        } else {
+          resBox.textContent = "[ Error blocking MAC: " + res.status + " ]\n" + text;
+        }
+      } catch (err) {
+        resBox.textContent = "[ Could not send block request automatically. Please add the MAC in your admin panel under Device Settings > MAC Filter. ]";
+      }
+    }
+  </script>
+</body>
+</html>
