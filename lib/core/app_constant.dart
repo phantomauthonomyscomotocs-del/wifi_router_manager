@@ -8,3 +8,4 @@ class AppConstant {
 
   static String token = 'TOKEN';
 }
+2sz😀
